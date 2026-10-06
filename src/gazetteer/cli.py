@@ -1,0 +1,121 @@
+"""Command line: ``gazetteer build`` writes the page."""
+
+from __future__ import annotations
+
+import argparse
+import json
+import sys
+from pathlib import Path
+
+from .build import BuildOptions, build, build_shard, parse_server
+from .layout import Layout, LayoutError
+from .lsp import DEFAULT_SERVER
+from .pack import pack
+
+
+def _parser() -> argparse.ArgumentParser:
+    ap = argparse.ArgumentParser(prog="gazetteer", description="Static code docs generator for Python repositories.")
+    sub = ap.add_subparsers(dest="cmd", required=True)
+
+    b = sub.add_parser("build", help="build data.json and a single-file index.html")
+    b.add_argument("root", type=Path, help="repository checkout to document")
+    b.add_argument("--out", type=Path, default=Path("gazetteer-out"), help="output directory")
+    b.add_argument("--name", help="project name shown on the page (default: directory name)")
+    b.add_argument("--git-dir", type=Path, help="repository for git history (default: root)")
+    b.add_argument(
+        "--server",
+        default=" ".join(DEFAULT_SERVER),
+        help="language server command with call hierarchy (default: %(default)s)",
+    )
+    b.add_argument("--no-lsp", action="store_true", help="skip the call graph (AST, docs and git only)")
+    b.add_argument("--workers", type=int, default=8, help="parallel language-server queries")
+    b.add_argument("--pkg-dir", help="package directory to document (default: detected)")
+    b.add_argument("--module-root", help="directory module names are relative to (default: detected)")
+    b.add_argument("--import-prefix", help="top-level package name (default: detected)")
+    b.add_argument("--tests", action="append", help="test directory, repeatable (default: tests/, test/)")
+    b.add_argument("--skip", action="append", help="path substring to leave out, repeatable")
+    b.add_argument("--docs-dir", help="directory of markdown docs (default: docs)")
+    b.add_argument(
+        "--tests-by-name",
+        type=Path,
+        help="tree holding the tests; link them by name instead of through the language server",
+    )
+    b.add_argument("--shard", help="i/N: query one shard into --facts-dir and exit")
+    b.add_argument("--facts-dir", type=Path, help="shard facts: written with --shard, merged otherwise")
+    b.add_argument("--prev-data", type=Path, help="data.json of the previous build, for an incremental build")
+    b.add_argument("--prev-root", type=Path, help="tree that --prev-data was built from")
+
+    return ap
+
+
+def _layout(args: argparse.Namespace) -> Layout:
+    root: Path = args.root
+    if args.pkg_dir and args.module_root is not None and args.import_prefix is not None:
+        base = Layout(pkg_dir=args.pkg_dir, module_root=args.module_root, import_prefix=args.import_prefix)
+    else:
+        found = Layout.detect(root)
+        base = Layout(
+            pkg_dir=args.pkg_dir or found.pkg_dir,
+            module_root=args.module_root if args.module_root is not None else found.module_root,
+            import_prefix=args.import_prefix if args.import_prefix is not None else found.import_prefix,
+            tests=found.tests,
+        )
+    updates: dict[str, object] = {}
+    if args.tests is not None:
+        updates["tests"] = tuple(args.tests)
+    if args.skip is not None:
+        updates["skip"] = tuple(args.skip)
+    if args.docs_dir is not None:
+        updates["docs_dir"] = args.docs_dir
+    return Layout(**{**base.__dict__, **updates})
+
+
+def _run_build(args: argparse.Namespace) -> int:
+    try:
+        layout = _layout(args)
+    except LayoutError as e:
+        print(f"gazetteer: {e}", file=sys.stderr)
+        return 2
+    opts = BuildOptions(
+        root=args.root,
+        layout=layout,
+        server=parse_server(args.server),
+        git_dir=args.git_dir,
+        name=args.name,
+        use_lsp=not args.no_lsp,
+        workers=args.workers,
+        tests_by_name=args.tests_by_name,
+        facts_dir=args.facts_dir,
+        prev_data=args.prev_data,
+        prev_root=args.prev_root,
+    )
+    if args.shard:
+        if not args.facts_dir:
+            print("gazetteer: --shard needs --facts-dir", file=sys.stderr)
+            return 2
+        i, n = (int(x) for x in args.shard.split("/"))
+        print("shard done", build_shard(opts, i, n))
+        return 0
+    if bool(args.prev_data) != bool(args.prev_root):
+        print("gazetteer: --prev-data and --prev-root go together", file=sys.stderr)
+        return 2
+    data = build(opts)
+    args.out.mkdir(parents=True, exist_ok=True)
+    data_path = args.out / "data.json"
+    data_path.write_text(json.dumps(data, separators=(",", ":")))
+    size = pack(data_path, args.out / "index.html")
+    st = data["stats"]
+    print(
+        f"{st['modules']} modules, {st['symbols']} symbols in {st['build_seconds']}s; "
+        f"wrote {args.out / 'index.html'} ({size / 1e6:.2f} MB)"
+    )
+    return 0
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = _parser().parse_args(argv)
+    return _run_build(args)
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

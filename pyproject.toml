@@ -1,0 +1,39 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "gazetteer"
+version = "0.1.0"
+description = "Static code docs generator for Python repositories: call graph, tests, docs links and git history in one searchable HTML page."
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+requires-python = ">=3.10"
+dependencies = []
+
+[project.optional-dependencies]
+lsp = ["pyright>=1.1.380"]
+dev = ["pytest>=8", "ruff>=0.6", "mypy>=1.10"]
+
+[project.scripts]
+gazetteer = "gazetteer.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/gazetteer"]
+
+[tool.ruff]
+line-length = 120
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+
+[tool.mypy]
+strict = true
+files = ["src/gazetteer"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+norecursedirs = ["fixtures"]
+pythonpath = ["src", "tests"]

@@ -1,0 +1,432 @@
+<title>Code Map</title>
+<style>
+/* Layout: sticky header with search, left package tree, right reading pane. Reference-browser density. */
+:root {
+  --bg: #f4f6f9; --surface: #ffffff; --ink: #1a2130; --muted: #5a667a; --line: #dde2ea;
+  --accent: #1f5fbf; --accent-soft: #e6eefb; --code-bg: #f0f3f8;
+  --k-class: #6f46b0; --k-func: #0f766a; --k-method: #94590a; --warn: #9a5b00; --warn-soft: #fbf0dc;
+  --sans: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #11151c; --surface: #171c25; --ink: #e3e8f0; --muted: #9aa5b8; --line: #283040;
+    --accent: #77a6ff; --accent-soft: #1b2740; --code-bg: #1d2430;
+    --k-class: #b494ee; --k-func: #4fc9b8; --k-method: #e0a65a; --warn: #e6b565; --warn-soft: #2d2517;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #11151c; --surface: #171c25; --ink: #e3e8f0; --muted: #9aa5b8; --line: #283040;
+  --accent: #77a6ff; --accent-soft: #1b2740; --code-bg: #1d2430;
+  --k-class: #b494ee; --k-func: #4fc9b8; --k-method: #e0a65a; --warn: #e6b565; --warn-soft: #2d2517;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--ink); font-family: var(--sans); font-size: 14px; line-height: 1.55; }
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+a:focus-visible, button:focus-visible, input:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 3px; }
+code, pre, .mono { font-family: var(--mono); font-size: 12.5px; }
+#app { display: grid; grid-template-rows: auto 1fr; min-height: 100vh; }
+header.top { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: var(--surface); border-bottom: 1px solid var(--line);
+  display: flex; flex-wrap: wrap; align-items: center; gap: 10px 20px; padding: 10px 16px; }
+.brand { font-weight: 600; font-size: 15px; letter-spacing: .01em; color: var(--ink); }
+.brand small { font-family: var(--mono); font-weight: 400; color: var(--muted); font-size: 11.5px; margin-left: 8px; }
+.searchwrap { position: relative; flex: 1 1 280px; max-width: 560px; min-width: 0; }
+#q { width: 100%; padding: 8px 12px 8px 12px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--ink); font: inherit; }
+.hint { position: absolute; right: 10px; top: 7px; font-family: var(--mono); font-size: 11px; color: var(--muted); border: 1px solid var(--line); border-radius: 4px; padding: 0 5px; pointer-events: none; }
+#navtoggle { display: none; padding: 7px 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--ink); font: inherit; }
+.layout { display: grid; grid-template-columns: 290px minmax(0, 1fr); min-height: 0; }
+nav#nav { border-right: 1px solid var(--line); background: var(--surface); padding: 12px 8px 40px 14px; overflow: auto;
+  position: sticky; top: calc(53px + env(safe-area-inset-top, 0px)); height: calc(100vh - 53px); }
+nav details { margin: 0; }
+nav summary { cursor: pointer; padding: 3px 4px; color: var(--muted); font-size: 12.5px; list-style: none; border-radius: 4px; display: flex; gap: 6px; align-items: baseline; }
+nav summary::-webkit-details-marker { display: none; }
+nav summary::before { content: "▸"; font-size: 10px; width: 10px; color: var(--muted); }
+nav details[open] > summary::before { content: "▾"; }
+nav .kids { margin-left: 9px; border-left: 1px solid var(--line); padding-left: 6px; }
+nav a.mod { display: block; padding: 2px 6px; border-radius: 4px; color: var(--ink); font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+nav a.mod:hover { background: var(--accent-soft); text-decoration: none; }
+nav a.mod.on { background: var(--accent-soft); color: var(--accent); font-weight: 500; }
+nav .sect { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin: 14px 4px 4px; }
+nav .count { margin-left: auto; font-family: var(--mono); font-size: 11px; color: var(--muted); }
+main#main { padding: 22px 28px 80px; min-width: 0; max-width: 1040px; }
+h1 { font-size: 22px; line-height: 1.25; margin: 0 0 4px; text-wrap: balance; font-weight: 600; }
+h1.mono { font-family: var(--mono); font-size: 18px; font-weight: 500; word-break: break-all; }
+h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin: 28px 0 8px; font-weight: 600; }
+h3 { font-size: 15px; margin: 20px 0 6px; }
+.crumbs { font-size: 12.5px; color: var(--muted); margin-bottom: 10px; display: flex; flex-wrap: wrap; gap: 4px; }
+.crumbs span.sep { opacity: .5; }
+.meta { display: flex; flex-wrap: wrap; gap: 6px 18px; color: var(--muted); font-size: 12.5px; margin: 6px 0 14px; }
+.meta b { color: var(--ink); font-weight: 500; }
+.pill { display: inline-block; font-family: var(--mono); font-size: 11px; padding: 1px 7px; border-radius: 10px; border: 1px solid currentColor; line-height: 1.5; white-space: nowrap; }
+.pill.class { color: var(--k-class); } .pill.function { color: var(--k-func); } .pill.method { color: var(--k-method); }
+.doc { max-width: 76ch; }
+.doc p { margin: 0 0 10px; }
+.doc code { background: var(--code-bg); border-radius: 3px; padding: 0 4px; }
+pre.lit { background: var(--code-bg); border: 1px solid var(--line); border-radius: 6px; padding: 8px 12px; margin: 0 0 10px; overflow-x: auto; font-size: 12.5px; }
+.sig { background: var(--code-bg); border: 1px solid var(--line); border-radius: 6px; padding: 10px 12px; font-family: var(--mono); font-size: 13px; overflow-x: auto; white-space: pre-wrap; word-break: break-word; margin: 8px 0 12px; }
+.deco { color: var(--muted); font-family: var(--mono); font-size: 12px; }
+.codebox { border: 1px solid var(--line); border-radius: 6px; overflow-x: auto; background: var(--surface); }
+.codebox pre { margin: 0; padding: 10px 0; min-width: max-content; counter-reset: ln calc(var(--start) - 1); }
+.codebox .ln { display: block; padding: 0 14px 0 0; }
+.codebox .ln::before { counter-increment: ln; content: counter(ln); display: inline-block; width: 52px; text-align: right; padding-right: 14px; color: var(--muted); opacity: .7; user-select: none; }
+.tablewrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); }
+table { border-collapse: collapse; width: 100%; font-size: 13px; }
+th { text-align: left; font-weight: 500; font-size: 11.5px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); padding: 7px 12px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+td { padding: 7px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+tr:last-child td { border-bottom: 0; }
+td.num { text-align: right; font-family: var(--mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
+td.nm { font-family: var(--mono); font-size: 12.5px; white-space: nowrap; }
+td.sg { font-family: var(--mono); font-size: 12px; color: var(--muted); max-width: 46ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { font-family: var(--mono); font-size: 12px; padding: 2px 8px; border: 1px solid var(--line); border-radius: 5px; background: var(--surface); color: var(--ink); }
+a.chip:hover { border-color: var(--accent); text-decoration: none; }
+.chip.ext { color: var(--muted); }
+.list { display: grid; gap: 4px; }
+.list .row { display: flex; flex-wrap: wrap; gap: 2px 10px; align-items: baseline; min-width: 0; }
+.list .row .t { color: var(--muted); font-size: 12px; min-width: 0; overflow-wrap: anywhere; }
+.note { background: var(--warn-soft); color: var(--ink); border: 1px solid var(--line); border-left: 3px solid var(--warn); border-radius: 4px; padding: 8px 12px; font-size: 13px; margin: 10px 0; }
+.cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px 28px; }
+.cols > div { min-width: 0; }
+.snip { color: var(--muted); font-size: 12.5px; margin: 1px 0 0; }
+mark { background: var(--accent-soft); color: inherit; border-radius: 2px; }
+.md h1 { font-size: 20px; margin: 4px 0 10px; } .md h2 { font-size: 16px; text-transform: none; letter-spacing: 0; color: var(--ink); margin: 22px 0 6px; }
+.md h3 { font-size: 14px; } .md p, .md li { max-width: 80ch; } .md pre { background: var(--code-bg); border: 1px solid var(--line); border-radius: 6px; padding: 10px 12px; overflow-x: auto; }
+.md code { background: var(--code-bg); border-radius: 3px; padding: 0 4px; } .md pre code { background: none; padding: 0; }
+.md blockquote { margin: 8px 0; padding: 2px 12px; border-left: 3px solid var(--line); color: var(--muted); }
+.md table { margin: 8px 0; } .md .tablewrap { margin: 8px 0; }
+.empty { color: var(--muted); font-style: italic; }
+#loading { padding: 40px 16px; color: var(--muted); }
+@media (max-width: 860px) {
+  .layout { grid-template-columns: minmax(0, 1fr); }
+  nav#nav { display: none; position: static; height: auto; max-height: 60vh; border-right: 0; border-bottom: 1px solid var(--line); }
+  body.navopen nav#nav { display: block; }
+  #navtoggle { display: inline-block; }
+  main#main { padding: 18px 16px 70px; }
+  .sg { display: none; }
+}
+@media (prefers-reduced-motion: no-preference) { a, .chip { transition: border-color .12s, background .12s; } }
+</style>
+
+<div id="app">
+  <header class="top">
+    <button id="navtoggle" type="button" aria-expanded="false" aria-controls="nav">Browse</button>
+    <a class="brand" href="#" id="brand"><span id="brand-name">Code Map</span><small id="commit"></small></a>
+    <div class="searchwrap">
+      <input id="q" type="search" placeholder="Search symbols, modules, docs" autocomplete="off" spellcheck="false" aria-label="Search">
+      <span class="hint" aria-hidden="true">/</span>
+    </div>
+  </header>
+  <div class="layout">
+    <nav id="nav" aria-label="Packages"></nav>
+    <main id="main"><div id="loading">Unpacking generated docs…</div></main>
+  </div>
+</div>
+
+<script>
+const PACKED = "__DATA_B64__";
+(async function () {
+  const $ = (s) => document.querySelector(s);
+  const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+  let P = { name: "", prefix: "", tests: [], docs_dir: "docs", pkg_dir: "" };
+  const short = (id) => P.prefix ? id.replace(new RegExp("^" + P.prefix.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "\\."), "") : id;
+  const testName = (f) => { for (const t of P.tests) if (f.startsWith(t + "/")) return f.slice(t.length + 1); return f; };
+  const fmt = (n) => n.toLocaleString("en-US");
+
+  // ---- unpack the generated data (gzip + base64) ----------------------------------------------
+  let D;
+  try {
+    const bin = Uint8Array.from(atob(PACKED), (c) => c.charCodeAt(0));
+    const ds = new Response(new Blob([bin]).stream().pipeThrough(new DecompressionStream("gzip")));
+    D = JSON.parse(await ds.text());
+  } catch (e) {
+    $("#loading").textContent = "This browser cannot unpack the embedded data (needs DecompressionStream).";
+    return;
+  }
+  P = D.project;
+  document.title = `${P.name} code map`;
+  $("#brand-name").textContent = `${P.name} code map`;
+  const M = D.modules, S = D.symbols, DOCS = D.docs;
+  const docByFile = Object.fromEntries(DOCS.map((d) => [d.file, d]));
+  const docKey = (f) => f.replace(/^[^/]+\//, "").replace(/\.md$/, "");
+  $("#commit").textContent = D.commit.slice(0, 7);
+
+  // ---- derived indexes ------------------------------------------------------------------------
+  const mods = Object.values(M).sort((a, b) => a.id.localeCompare(b.id));
+  const syms = Object.values(S);
+  const pkgOf = (m) => m.id.split(".").slice(1, -1).join(".") || "(top level)";
+  const pkgs = {};
+  for (const m of mods) {
+    const p = m.id === P.prefix ? "(top level)" : (m.path.endsWith("__init__.py") ? m.id.split(".").slice(1).join(".") || "(top level)" : pkgOf(m));
+    (pkgs[p] ||= []).push(m);
+  }
+  const callersN = (s) => s.calls_in.length + s.calls_in_x.length;
+  const testsN = (s) => Object.values(s.tests).reduce((a, v) => a + v.length, 0);
+  const PLAIN = /^(property|classmethod|staticmethod|abstractmethod|cached_property|functools\.(cache|cached_property|wraps|lru_cache)|cache|lru_cache|wraps|override|contextmanager|asynccontextmanager|contextlib\.\w+|dataclass|.*\.setter|.*\.getter|pytest\.\w+|patch.*|unittest\.mock\.patch.*)(\(.*)?$/;
+  const frameworkDeco = (s) => s.decorators.find((d) => !PLAIN.test(d));
+  const isEntry = (s) => s.kind !== "class" && s.calls_in.length === 0 && !!frameworkDeco(s);
+  const docRefsToModule = {};
+  for (const m of mods) for (const r of m.docs) (docRefsToModule[r.file] ||= []).push(m);
+
+  // ---- search index ---------------------------------------------------------------------------
+  const sections = [];
+  for (const d of DOCS) {
+    let head = d.title, buf = [];
+    const flush = () => { if (buf.length) sections.push({ file: d.file, head, text: buf.join(" ") }); buf = []; };
+    for (const l of d.text.split("\n")) {
+      const h = /^(#{1,4})\s+(.*)/.exec(l);
+      if (h) { flush(); head = h[2]; } else if (l.trim()) buf.push(l.trim());
+    }
+    flush();
+  }
+  function search(q) {
+    const toks = q.toLowerCase().split(/\s+/).filter(Boolean);
+    if (!toks.length) return null;
+    const out = { symbols: [], modules: [], docs: [] };
+    for (const s of syms) {
+      const n = s.name.toLowerCase(), qn = s.id.toLowerCase(), dc = (s.doc || "").toLowerCase();
+      let score = 0, ok = true;
+      for (const t of toks) {
+        if (n === t) score += 100; else if (n.startsWith(t)) score += 60; else if (n.includes(t)) score += 40;
+        else if (qn.includes(t)) score += 20; else if (dc.includes(t)) score += 8; else { ok = false; break; }
+      }
+      if (ok) out.symbols.push([score - (s.private ? 5 : 0), s]);
+    }
+    for (const m of mods) {
+      const id = m.id.toLowerCase(), dc = (m.doc || "").toLowerCase();
+      let score = 0, ok = true;
+      for (const t of toks) { if (id.endsWith(t)) score += 50; else if (id.includes(t)) score += 30; else if (dc.includes(t)) score += 8; else { ok = false; break; } }
+      if (ok) out.modules.push([score, m]);
+    }
+    for (const sec of sections) {
+      const h = sec.head.toLowerCase(), tx = sec.text.toLowerCase();
+      let score = 0, ok = true;
+      for (const t of toks) { if (h.includes(t)) score += 30; else if (tx.includes(t)) score += 5; else { ok = false; break; } }
+      if (ok) out.docs.push([score, sec]);
+    }
+    for (const k of Object.keys(out)) out[k].sort((a, b) => b[0] - a[0]);
+    return out;
+  }
+  const hl = (text, q) => {
+    let t = esc(text);
+    for (const w of q.toLowerCase().split(/\s+/).filter((x) => x.length > 1)) {
+      t = t.replace(new RegExp("(" + w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + ")", "ig"), "<mark>$1</mark>");
+    }
+    return t;
+  };
+
+  // ---- small renderers ------------------------------------------------------------------------
+  const link = (kind, id, label) => `<a href="#${kind}~${esc(id)}">${esc(label ?? short(id))}</a>`;
+  const symLink = (id) => (S[id] ? `<a class="chip" href="#s~${esc(id)}">${esc(S[id].qual)}</a>` : `<span class="chip ext">${esc(short(id))}</span>`);
+  const pill = (k) => `<span class="pill ${k}">${k}</span>`;
+  const rst = (t) => esc(t).replace(/:\w+:`~?([^`]+)`/g, "<code>$1</code>").replace(/``([^`]+)``/g, "<code>$1</code>");
+  const para = (txt) => {
+    if (!txt) return "";
+    const blocks = txt.trim().split(/\n\s*\n/); let prevLiteral = false, out = "";
+    for (const p of blocks) {
+      const ls = p.split("\n");
+      const literal = prevLiteral || ls.slice(1).some((l) => /^\s{2,}\S/.test(l)) || /^\s{2,}\S/.test(ls[0]);
+      out += literal ? `<pre class="lit">${esc(p)}</pre>` : `<p>${rst(p.replace(/\n/g, " "))}</p>`;
+      prevLiteral = /::\s*$/.test(p);
+    }
+    return out;
+  };
+  const modOf = (id) => M[id];
+
+  function md(src) {
+    const lines = src.split("\n"); let out = "", i = 0;
+    const inline = (t) => esc(t)
+      .replace(/`([^`]+)`/g, "<code>$1</code>")
+      .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
+      .replace(/(^|[^*])\*([^*\s][^*]*)\*/g, "$1<em>$2</em>")
+      .replace(/\[([^\]]+)\]\((https?:[^)\s]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>')
+      .replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, "<span>$1</span>");
+    while (i < lines.length) {
+      const l = lines[i];
+      if (/^```/.test(l)) { const buf = []; i++; while (i < lines.length && !/^```/.test(lines[i])) buf.push(lines[i++]); i++; out += `<pre><code>${esc(buf.join("\n"))}</code></pre>`; continue; }
+      const h = /^(#{1,4})\s+(.*)/.exec(l);
+      if (h) { out += `<h${h[1].length}>${inline(h[2])}</h${h[1].length}>`; i++; continue; }
+      if (/^\s*\|.*\|\s*$/.test(l) && /^\s*\|[\s:|-]+\|\s*$/.test(lines[i + 1] || "")) {
+        const row = (r) => r.trim().replace(/^\||\|$/g, "").split("|").map((c) => c.trim());
+        const head = row(l); i += 2; const rows = [];
+        while (i < lines.length && /^\s*\|.*\|\s*$/.test(lines[i])) rows.push(row(lines[i++]));
+        out += `<div class="tablewrap"><table><tr>${head.map((c) => `<th>${inline(c)}</th>`).join("")}</tr>${rows.map((r) => `<tr>${r.map((c) => `<td>${inline(c)}</td>`).join("")}</tr>`).join("")}</table></div>`; continue;
+      }
+      if (/^\s*([-*]|\d+\.)\s+/.test(l)) {
+        const ord = /^\s*\d+\./.test(l); const items = [];
+        while (i < lines.length && /^\s*([-*]|\d+\.)\s+/.test(lines[i])) { items.push(lines[i].replace(/^\s*([-*]|\d+\.)\s+/, "")); i++; }
+        out += `<${ord ? "ol" : "ul"}>${items.map((x) => `<li>${inline(x)}</li>`).join("")}</${ord ? "ol" : "ul"}>`; continue;
+      }
+      if (/^>\s?/.test(l)) { const buf = []; while (i < lines.length && /^>\s?/.test(lines[i])) buf.push(lines[i++].replace(/^>\s?/, "")); out += `<blockquote>${inline(buf.join(" "))}</blockquote>`; continue; }
+      if (!l.trim()) { i++; continue; }
+      const buf = []; while (i < lines.length && lines[i].trim() && !/^(```|#{1,4}\s|\s*([-*]|\d+\.)\s|>|\s*\|)/.test(lines[i])) buf.push(lines[i++]);
+      if (!buf.length) { buf.push(lines[i++]); }
+      out += `<p>${inline(buf.join(" "))}</p>`;
+    }
+    return `<div class="md">${out}</div>`;
+  }
+
+  // ---- views ----------------------------------------------------------------------------------
+  function viewHome() {
+    const st = D.stats;
+    const loc = mods.reduce((a, m) => a + m.loc, 0);
+    const top = [...syms].filter((s) => s.kind !== "class" || true).sort((a, b) => callersN(b) - callersN(a)).slice(0, 12);
+    const entries = syms.filter(isEntry).slice(0, 10);
+    const hubs = [...mods].sort((a, b) => b.imported_by.length - a.imported_by.length).slice(0, 8);
+    const rows = Object.entries(pkgs).map(([p, ms]) => ({ p, n: ms.length, s: ms.reduce((a, m) => a + m.symbols.length, 0), l: ms.reduce((a, m) => a + m.loc, 0) })).sort((a, b) => b.l - a.l);
+    return `
+      <h1>${esc(P.name)}</h1>
+      <div class="meta"><span><b>${fmt(st.modules)}</b> modules</span><span><b>${fmt(st.symbols)}</b> symbols</span><span><b>${fmt(loc)}</b> lines</span>${st.docs ? `<span><b>${st.docs}</b> docs</span>` : ""}<span>commit <b class="mono">${D.commit.slice(0, 10)}</b></span></div>
+      <div class="cols">
+        <div><h2>Most called</h2><div class="list">${top.map((s) => `<div class="row">${pill(s.kind)}${symLink(s.id)}<span class="t">${callersN(s)} callers · ${esc(short(s.module))}</span></div>`).join("")}</div></div>
+        <div><h2>Entry points found by decorator</h2><div class="list">${entries.map((s) => `<div class="row">${pill(s.kind)}${symLink(s.id)}<span class="t">${esc(frameworkDeco(s).slice(0, 40))}</span></div>`).join("")}</div></div>
+      </div>
+      <h2>Most imported modules</h2>
+      <div class="chips">${hubs.map((m) => `<a class="chip" href="#m~${esc(m.id)}">${esc(short(m.id))} <span style="color:var(--muted)">${m.imported_by.length}</span></a>`).join("")}</div>
+      <h2>Packages</h2>
+      <div class="tablewrap"><table><tr><th>Package</th><th style="text-align:right">Modules</th><th style="text-align:right">Symbols</th><th style="text-align:right">Lines</th></tr>
+        ${rows.map((r) => `<tr><td class="nm">${esc(r.p)}</td><td class="num">${r.n}</td><td class="num">${fmt(r.s)}</td><td class="num">${fmt(r.l)}</td></tr>`).join("")}</table></div>
+      <h2>Docs</h2>
+      <div class="list">${DOCS.map((d) => `<div class="row"><a href="#d~${esc(docKey(d.file))}">${esc(d.title)}</a><span class="t mono">${esc(d.file)} · ${(docRefsToModule[d.file] || []).length} modules named</span></div>`).join("")}</div>`;
+  }
+
+  function viewModule(id) {
+    const m = M[id]; if (!m) return notFound();
+    const g = m.git;
+    const own = m.symbols.map((x) => S[x]).filter((s) => s.kind !== "method");
+    const rowsFor = (list) => list.map((s) => `<tr><td>${pill(s.kind)}</td><td class="nm"><a href="#s~${esc(s.id)}">${esc(s.qual)}</a></td><td class="sg">${esc(s.kind === "class" ? (s.bases.length ? "(" + s.bases.join(", ") + ")" : "") : s.sig.replace(/^(async )?[A-Za-z_0-9]+/, "$1"))}</td><td>${esc(first(s.doc))}</td><td class="num">${callersN(s) || "·"}</td><td class="num">${testsN(s) || "·"}</td></tr>`).join("");
+    const methods = m.symbols.map((x) => S[x]).filter((s) => s.kind === "method");
+    const parts = id.split(".");
+    return `
+      <div class="crumbs"><a href="#">Code map</a><span class="sep">/</span>${parts.slice(1, -1).map((p) => `<span>${esc(p)}</span><span class="sep">/</span>`).join("")}</div>
+      <h1 class="mono">${esc(id)}</h1>
+      <div class="meta"><span class="mono">${esc(m.path)}</span><span><b>${fmt(m.loc)}</b> lines</span><span><b>${m.symbols.length}</b> symbols</span>
+        ${g ? `<span>last change <b>${esc(g.last)}</b> · “${esc(g.subject)}”</span><span><b>${g.commits}</b> commit${g.commits === 1 ? "" : "s"}, <b>${g.authors}</b> author${g.authors === 1 ? "" : "s"}</span>` : ""}</div>
+      ${m.doc ? `<div class="doc">${para(m.doc)}</div>` : `<p class="empty">No module docstring.</p>`}
+      ${m.docs.length ? `<h2>Described in docs</h2><div class="list">${m.docs.map((r) => `<div class="row"><a href="#d~${esc(docKey(r.file))}">${esc(r.title)}</a><span class="t">line ${r.line}: ${esc(r.text.slice(0, 120))}</span></div>`).join("")}</div>` : ""}
+      <h2>Classes and functions</h2>
+      ${own.length ? `<div class="tablewrap"><table><tr><th></th><th>Name</th><th class="sg">Signature</th><th>Summary</th><th style="text-align:right">Callers</th><th style="text-align:right">Tests</th></tr>${rowsFor(own)}</table></div>` : `<p class="empty">Nothing defined at top level.</p>`}
+      ${methods.length ? `<h2>Methods</h2><div class="tablewrap"><table><tr><th></th><th>Name</th><th class="sg">Signature</th><th>Summary</th><th style="text-align:right">Callers</th><th style="text-align:right">Tests</th></tr>${rowsFor(methods)}</table></div>` : ""}
+      ${m.consts.length ? `<h2>Constants</h2><div class="tablewrap"><table>${m.consts.map((c) => `<tr><td class="nm">${esc(c.name)}</td><td class="sg" style="max-width:60ch">${esc(c.value)}</td><td class="num">line ${c.line}</td></tr>`).join("")}</table></div>` : ""}
+      <div class="cols">
+        <div><h2>Imports</h2>${m.imports.length ? `<div class="chips">${m.imports.map((x) => `<a class="chip" href="#m~${esc(x)}">${esc(short(x))}</a>`).join("")}</div>` : `<p class="empty">No internal imports.</p>`}</div>
+        <div><h2>Imported by</h2>${m.imported_by.length ? `<div class="chips">${m.imported_by.slice(0, 40).map((x) => `<a class="chip" href="#m~${esc(x)}">${esc(short(x))}</a>`).join("")}${m.imported_by.length > 40 ? `<span class="chip ext">+${m.imported_by.length - 40} more</span>` : ""}</div>` : `<p class="empty">Nothing imports this module.</p>`}</div>
+      </div>
+      <div class="cols">
+        <div><h2>Tests that reach it</h2>${Object.keys(m.tests).length ? `<div class="list">${Object.entries(m.tests).slice(0, 10).map(([f, n]) => `<div class="row"><span class="mono">${esc(testName(f))}</span><span class="t">${n} call${n === 1 ? "" : "s"}</span></div>`).join("")}</div>` : `<p class="empty">No test calls found through the call graph.</p>`}</div>
+        <div><h2>Changes together with</h2>${m.cochange.length ? `<div class="list">${m.cochange.map((c) => `<div class="row">${c.module ? `<a class="mono" href="#m~${esc(c.module)}">${esc(short(c.module))}</a>` : `<span class="mono">${esc(c.file.replace("tests/unit/", ""))}</span>`}<span class="t">${c.n} commits</span></div>`).join("")}</div>` : `<p class="empty">No file changed with this one in 3 or more commits.</p>`}</div>
+      </div>`;
+  }
+  const first = (d) => (d || "").trim().split(/\n\s*\n/)[0].replace(/:\w+:`~?([^`]+)`/g, "$1").replace(/``/g, "").replace(/\s+/g, " ").slice(0, 140);
+
+  function viewSymbol(id) {
+    const s = S[id]; if (!s) return notFound();
+    const m = M[s.module]; const cls = s.class ? S[s.class] : null;
+    const chipsOf = (ids) => ids.length ? `<div class="chips">${ids.map(symLink).join("")}</div>` : "";
+    const lines = s.code.split("\n").map((l) => `<span class="ln">${esc(l) || " "}</span>`).join("");
+    const entry = isEntry(s);
+    return `
+      <div class="crumbs"><a href="#">Code map</a><span class="sep">/</span>${link("m", s.module, short(s.module))}${cls ? `<span class="sep">/</span>${link("s", cls.id, cls.name)}` : ""}</div>
+      <h1 class="mono">${esc(s.qual)}</h1>
+      <div class="meta">${pill(s.kind)}<span class="mono">${esc(s.file)}:${s.line}–${s.end}</span>${s.private ? `<span>internal (leading underscore)</span>` : ""}${m && m.git ? `<span>module last changed <b>${esc(m.git.last)}</b></span>` : ""}</div>
+      ${s.decorators.length ? `<div class="deco">${s.decorators.map((d) => "@" + esc(d)).join("<br>")}</div>` : ""}
+      <div class="sig">${esc(s.sig)}</div>
+      ${s.doc ? `<div class="doc">${para(s.doc)}</div>` : `<p class="empty">No docstring.</p>`}
+      ${entry ? `<div class="note">No code in <code>src</code> calls this. It carries a decorator, so it is most likely registered with a framework: <code>@${esc(frameworkDeco(s).length > 80 ? frameworkDeco(s).slice(0, 80) + "…" : frameworkDeco(s))}</code>.</div>` : ""}
+      ${s.kind === "class" ? `<div class="cols"><div><h2>Base classes</h2>${s.bases.length ? `<div class="chips">${s.bases.map((b) => { const t = syms.find((x) => x.kind === "class" && x.name === b.split(".").pop().split("[")[0] && x.id !== s.id); return t ? symLink(t.id) : `<span class="chip ext">${esc(b)}</span>`; }).join("")}</div>` : `<p class="empty">None.</p>`}</div>
+        <div><h2>Subclasses</h2>${s.subclasses.length ? chipsOf(s.subclasses) : `<p class="empty">None in this codebase.</p>`}</div></div>
+        <h2>Methods</h2>${s.methods.length ? `<div class="chips">${s.methods.map(symLink).join("")}</div>` : `<p class="empty">No methods.</p>`}` : ""}
+      <h2>Source</h2>
+      <div class="codebox"><pre style="--start:${s.line}"><code>${lines}</code></pre></div>
+      <div class="cols">
+        <div><h2>${s.kind === "class" ? "Created or referenced by" : "Called by"}</h2>${s.calls_in.length || s.calls_in_x.length ? chipsOf(s.calls_in) + (s.calls_in_x.length ? `<div class="chips" style="margin-top:6px">${s.calls_in_x.map((x) => `<span class="chip ext" title="${esc(x.at)}">${esc(x.name)}</span>`).join("")}</div>` : "") : `<p class="empty">No callers found in <code>src</code>.</p>`}</div>
+        <div><h2>Calls</h2>${s.calls_out.length || s.calls_out_x.length ? chipsOf(s.calls_out) + (s.calls_out_x.length ? `<div class="chips" style="margin-top:6px">${s.calls_out_x.slice(0, 14).map((x) => `<span class="chip ext">${esc(x)}</span>`).join("")}${s.calls_out_x.length > 14 ? `<span class="chip ext">+${s.calls_out_x.length - 14}</span>` : ""}</div>` : "") : `<p class="empty">Calls nothing tracked.</p>`}</div>
+      </div>
+      <div class="cols">
+        <div><h2>Tests that call it</h2>${Object.keys(s.tests).length ? `<div class="list">${Object.entries(s.tests).map(([f, ns]) => `<div class="row"><span class="mono">${esc(testName(f))}</span><span class="t">${ns.map(esc).join(", ")}</span></div>`).join("")}</div>` : `<p class="empty">No test calls it directly.</p>`}</div>
+        <div><h2>Mentioned in docs</h2>${s.docs.length ? `<div class="list">${s.docs.map((r) => `<div class="row"><a href="#d~${esc(docKey(r.file))}">${esc(r.title)}</a><span class="t">line ${r.line}</span></div>`).join("")}</div>` : `<p class="empty">Not named in any doc.</p>`}</div>
+      </div>`;
+  }
+
+  function viewDoc(key) {
+    const d = DOCS.find((x) => docKey(x.file) === key); if (!d) return notFound();
+    const refs = docRefsToModule[d.file] || [];
+    return `
+      <div class="crumbs"><a href="#">Code map</a><span class="sep">/</span><span>Docs</span></div>
+      <div class="meta"><span class="mono">${esc(d.file)}</span><span class="pill gen">human-written, rendered as is</span></div>
+      ${refs.length ? `<div class="note" style="border-left-color:var(--accent)"><b>Code this doc names:</b> ${refs.slice(0, 14).map((m) => link("m", m.id)).join(", ")}${refs.length > 14 ? ` and ${refs.length - 14} more` : ""}</div>` : ""}
+      ${md(d.text)}`;
+  }
+
+  function viewSearch(q) {
+    const r = search(q);
+    if (!r) return viewHome();
+    const cap = (a, n) => a.slice(0, n);
+    return `
+      <h1>Results for “${esc(q)}”</h1>
+      <div class="meta"><span><b>${r.symbols.length}</b> symbols</span><span><b>${r.modules.length}</b> modules</span><span><b>${r.docs.length}</b> doc sections</span></div>
+      <h2>Symbols</h2>
+      ${r.symbols.length ? `<div class="list">${cap(r.symbols, 25).map(([, s]) => `<div><div class="row">${pill(s.kind)}<a class="mono" href="#s~${esc(s.id)}">${hl(s.qual, q)}</a><span class="t">${esc(short(s.module))}</span></div>${s.doc ? `<div class="snip">${hl(first(s.doc), q)}</div>` : ""}</div>`).join("")}</div>${r.symbols.length > 25 ? `<p class="snip">Showing 25 of ${r.symbols.length}. Add words to narrow.</p>` : ""}` : `<p class="empty">No symbol matches.</p>`}
+      <h2>Modules</h2>
+      ${r.modules.length ? `<div class="list">${cap(r.modules, 10).map(([, m]) => `<div><div class="row"><a class="mono" href="#m~${esc(m.id)}">${hl(short(m.id), q)}</a></div>${m.doc ? `<div class="snip">${hl(first(m.doc), q)}</div>` : ""}</div>`).join("")}</div>` : `<p class="empty">No module matches.</p>`}
+      <h2>Docs</h2>
+      ${r.docs.length ? `<div class="list">${cap(r.docs, 8).map(([, sec]) => { const d = docByFile[sec.file]; const at = sec.text.toLowerCase().indexOf(q.toLowerCase().split(/\s+/)[0]); const start = Math.max(0, at - 60); return `<div><div class="row"><a href="#d~${esc(docKey(sec.file))}">${hl(sec.head, q)}</a><span class="t">${esc(d.title)}</span></div><div class="snip">${hl((start ? "…" : "") + sec.text.slice(start, start + 200), q)}…</div></div>`; }).join("")}</div>` : `<p class="empty">No doc section matches.</p>`}`;
+  }
+  const notFound = () => `<h1>Not found</h1><p class="empty">That page is not in this build. <a href="#">Back to the overview</a>.</p>`;
+
+  // ---- nav ------------------------------------------------------------------------------------
+  function buildNav() {
+    const names = Object.keys(pkgs).sort((a, b) => (a === "(top level)" ? -1 : b === "(top level)" ? 1 : a.localeCompare(b)));
+    $("#nav").innerHTML = `<div class="sect">Packages</div>` + names.map((p) => `<details data-pkg="${esc(p)}"><summary>${esc(p)}<span class="count">${pkgs[p].length}</span></summary><div class="kids">${pkgs[p].map((m) => `<a class="mod" data-id="${esc(m.id)}" href="#m~${esc(m.id)}" title="${esc(m.id)}">${esc(m.id.split(".").pop() === "__init__" ? "(package)" : (m.path.endsWith("__init__.py") ? "(package)" : m.id.split(".").pop()))}</a>`).join("")}</div></details>`).join("")
+      + `<div class="sect">Docs</div>` + DOCS.map((d) => `<a class="mod" data-doc="${esc(docKey(d.file))}" href="#d~${esc(docKey(d.file))}" title="${esc(d.file)}">${esc(d.title)}</a>`).join("");
+  }
+  function markNav(kind, id) {
+    document.querySelectorAll("nav a.on").forEach((a) => a.classList.remove("on"));
+    const sel = kind === "d" ? `nav a[data-doc="${CSS.escape(id)}"]` : `nav a[data-id="${CSS.escape(id)}"]`;
+    const a = document.querySelector(sel);
+    if (a) { a.classList.add("on"); const det = a.closest("details"); if (det) det.open = true; a.scrollIntoView({ block: "nearest" }); }
+  }
+
+  // ---- routing --------------------------------------------------------------------------------
+  let lastQ = "";
+  function route() {
+    const h = decodeURIComponent(location.hash.replace(/^#/, ""));
+    const main = $("#main");
+    const [kind, ...rest] = h.split("~"); const id = rest.join("~");
+    let html, nav = null;
+    if (kind === "m") { html = viewModule(id); nav = ["m", id]; }
+    else if (kind === "s") { html = viewSymbol(id); nav = ["m", S[id] ? S[id].module : ""]; }
+    else if (kind === "d") { html = viewDoc(id); nav = ["d", id]; }
+    else if (lastQ) { html = viewSearch(lastQ); }
+    else { html = viewHome(); }
+    main.innerHTML = html;
+    if (nav) markNav(...nav); else document.querySelectorAll("nav a.on").forEach((a) => a.classList.remove("on"));
+    window.scrollTo(0, 0);
+    document.body.classList.remove("navopen"); $("#navtoggle").setAttribute("aria-expanded", "false");
+  }
+  window.addEventListener("hashchange", () => { if (location.hash && location.hash !== "#") { lastQ = ""; $("#q").value = ""; } route(); });
+  let timer;
+  $("#q").addEventListener("input", (e) => {
+    clearTimeout(timer);
+    timer = setTimeout(() => {
+      lastQ = e.target.value.trim();
+      if (location.hash && location.hash !== "#") history.replaceState(null, "", location.pathname + location.search);
+      route();
+    }, 120);
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "/" && document.activeElement !== $("#q")) { e.preventDefault(); $("#q").focus(); }
+    if (e.key === "Escape" && document.activeElement === $("#q")) { $("#q").value = ""; lastQ = ""; route(); $("#q").blur(); }
+  });
+  $("#navtoggle").addEventListener("click", () => {
+    const open = document.body.classList.toggle("navopen");
+    $("#navtoggle").setAttribute("aria-expanded", String(open));
+  });
+  $("#brand").addEventListener("click", () => { lastQ = ""; $("#q").value = ""; });
+
+  buildNav();
+  route();
+})();
+</script>
