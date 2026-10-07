@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "gazetteer"
 version = "0.1.0"
-description = "Static code docs generator for Python repositories: call graph, tests, docs links and git history in one searchable HTML page."
+description = "Static code docs generator for Python and Go repositories and monorepos: call graph, tests, docs links and git history in one searchable HTML page."
 readme = "README.md"
 license = "MIT"
 license-files = ["LICENSE"]
@@ -21,6 +21,14 @@ gazetteer = "gazetteer.cli:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/gazetteer"]
+# the Go tools are written by the build hook and are not in git
+artifacts = ["src/gazetteer/_bin/**"]
+
+[tool.hatch.build.targets.sdist]
+exclude = ["go/bin", "src/gazetteer/_bin"]
+
+[tool.hatch.build.hooks.custom]
+path = "hatch_build.py"
 
 [tool.ruff]
 line-length = 120
@@ -31,7 +39,7 @@ select = ["E", "F", "I", "UP", "B", "SIM"]
 
 [tool.mypy]
 strict = true
-files = ["src/gazetteer"]
+files = ["src/gazetteer", "scripts"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

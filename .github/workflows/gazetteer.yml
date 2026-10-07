@@ -13,8 +13,31 @@ jobs:
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: ${{ matrix.python }}
+      # the go directive of the gopls pin is the newest Go the repo needs
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go/gopls/go.mod
+          cache-dependency-path: |
+            go/helper/go.mod
+            go/gopls/go.sum
       - run: pip install -e '.[dev]'
       - run: ruff check .
       - run: ruff format --check .
       - run: mypy
+      # builds the helper and gopls into src/gazetteer/_bin, where the plugin finds them
+      - run: python scripts/build_go.py
       - run: pytest -q
+  go:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: go/helper
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go/helper/go.mod
+          cache-dependency-path: go/helper/go.mod
+      - run: test -z "$(gofmt -l .)"
+      - run: go vet ./...
+      - run: go test ./...
