@@ -26,11 +26,43 @@ The package layout is detected from `src/<pkg>/` or `<pkg>/`, with `tests/` or `
 
 | Option | Effect |
 | --- | --- |
+| `--config FILE` | Units file for a monorepo. Default `gazetteer.toml` in the root, if present. See [Monorepos](#monorepos). |
+| `--lang NAME` | Language of the code. Default `python`. |
 | `--server CMD` | Language server command. Default `pyright-langserver --stdio`. |
 | `--no-lsp` | Skip the call graph. Build uses only `ast`, docs and git. |
 | `--workers N` | Parallel queries (default 8). |
 | `--tests-by-name TREE` | Link tests by the names they use instead of through the server. Approximate, much faster. |
 | `--git-dir DIR` | Repository for history, when `root` is an export of it. |
+
+## Monorepos
+
+Put a `gazetteer.toml` in the repository root and list the units to document. A unit is one language
+rooted in one directory.
+
+```toml
+name = "acme"                  # project name on the page (default: directory name)
+
+[[unit]]
+path = "services/api"          # directory of the unit, relative to the root (default ".")
+name = "api"                   # default: the last component of path
+
+[[unit]]
+path = "tools/importer"
+lang = "python"                # default
+pkg_dir = "src/importer"       # any of pkg_dir, module_root, import_prefix, tests, skip, docs_dir
+server = "pyright-langserver --stdio"   # optional per-unit language server
+```
+
+Anything a unit does not set is detected the same way as for a single package, but below its own `path`.
+Each unit is read, queried and given its own language server in its own directory, then merged:
+
+- ids are prefixed with the unit name (`api:pkg.mod.func`), so equal module names in two units do not collide;
+- file paths are relative to the repository root;
+- call graphs, test links and doc links (`<unit>/docs`) stay inside a unit;
+- `--shard` and `--facts-dir` keep one facts directory per unit, and `--prev-data` rebuilds only the units that changed.
+
+With a config file the layout options (`--lang`, `--pkg-dir`, ...) belong in the file. Without one, a
+build is a single unit and ids stay bare.
 
 ## How it works
 

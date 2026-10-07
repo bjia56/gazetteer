@@ -11,6 +11,7 @@ from .build import BuildOptions, build, build_shard, parse_server
 from .languages import language_names
 from .layout import Layout, LayoutError
 from .pack import pack
+from .units import CONFIG_NAME, Config, ConfigError, find_config, load_config
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -22,7 +23,13 @@ def _parser() -> argparse.ArgumentParser:
     b.add_argument("--out", type=Path, default=Path("gazetteer-out"), help="output directory")
     b.add_argument("--name", help="project name shown on the page (default: directory name)")
     b.add_argument("--git-dir", type=Path, help="repository for git history (default: root)")
-    b.add_argument("--lang", default="python", choices=language_names(), help="language of the code (default: python)")
+    b.add_argument("--lang", choices=language_names(), help="language of the code (default: python)")
+    b.add_argument(
+        "--config",
+        type=Path,
+        help=f"units file for a monorepo (default: {CONFIG_NAME} in root, if present); "
+        "the layout options below then belong in the file",
+    )
     b.add_argument(
         "--server",
         help="language server command with call hierarchy (default: the language's own, pyright for python)",
@@ -48,43 +55,46 @@ def _parser() -> argparse.ArgumentParser:
     return ap
 
 
+LAYOUT_FLAGS = ("lang", "pkg_dir", "module_root", "import_prefix", "tests", "skip", "docs_dir")
+
+
 def _layout(args: argparse.Namespace) -> Layout:
-    root: Path = args.root
-    if args.pkg_dir and args.module_root is not None and args.import_prefix is not None:
-        base = Layout(
-            pkg_dir=args.pkg_dir, module_root=args.module_root, import_prefix=args.import_prefix, lang=args.lang
-        )
-    else:
-        found = Layout.detect(root, args.lang)
-        base = Layout(
-            pkg_dir=args.pkg_dir or found.pkg_dir,
-            module_root=args.module_root if args.module_root is not None else found.module_root,
-            import_prefix=args.import_prefix if args.import_prefix is not None else found.import_prefix,
-            tests=found.tests,
-            lang=args.lang,
-        )
-    updates: dict[str, object] = {}
-    if args.tests is not None:
-        updates["tests"] = tuple(args.tests)
-    if args.skip is not None:
-        updates["skip"] = tuple(args.skip)
-    if args.docs_dir is not None:
-        updates["docs_dir"] = args.docs_dir
-    return Layout(**{**base.__dict__, **updates})
+    return Layout.resolve(
+        args.root,
+        args.lang or "python",
+        pkg_dir=args.pkg_dir,
+        module_root=args.module_root,
+        import_prefix=args.import_prefix,
+        tests=tuple(args.tests) if args.tests is not None else None,
+        skip=tuple(args.skip) if args.skip is not None else None,
+        docs_dir=args.docs_dir,
+    )
+
+
+def _config(args: argparse.Namespace) -> Config | None:
+    file = args.config or find_config(args.root)
+    if file is None:
+        return None
+    given = [f"--{f.replace('_', '-')}" for f in LAYOUT_FLAGS if getattr(args, f) is not None]
+    if given:
+        raise ConfigError(f"{', '.join(given)} cannot be combined with {file}; set them per unit in the file")
+    return load_config(file, args.root)
 
 
 def _run_build(args: argparse.Namespace) -> int:
     try:
-        layout = _layout(args)
-    except LayoutError as e:
+        config = _config(args)
+        layout = None if config else _layout(args)
+    except (LayoutError, ConfigError) as e:
         print(f"gazetteer: {e}", file=sys.stderr)
         return 2
     opts = BuildOptions(
         root=args.root,
         layout=layout,
+        units=config.units if config else (),
         server=parse_server(args.server) if args.server else None,
         git_dir=args.git_dir,
-        name=args.name,
+        name=args.name or (config.name if config else None),
         use_lsp=not args.no_lsp,
         workers=args.workers,
         tests_by_name=args.tests_by_name,
@@ -108,8 +118,9 @@ def _run_build(args: argparse.Namespace) -> int:
     data_path.write_text(json.dumps(data, separators=(",", ":")))
     size = pack(data_path, args.out / "index.html")
     st = data["stats"]
+    units = f"{len(config.units)} units, " if config else ""
     print(
-        f"{st['modules']} modules, {st['symbols']} symbols in {st['build_seconds']}s; "
+        f"{units}{st['modules']} modules, {st['symbols']} symbols in {st['build_seconds']}s; "
         f"wrote {args.out / 'index.html'} ({size / 1e6:.2f} MB)"
     )
     return 0
