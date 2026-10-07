@@ -50,7 +50,11 @@ class Layout:
     lang: str = "python"
 
     def is_test(self, rel: str) -> bool:
-        return any(rel == t or rel.startswith(t.rstrip("/") + "/") for t in self.tests)
+        from .languages import get_language
+
+        return any(rel == t or rel.startswith(t.rstrip("/") + "/") for t in self.tests) or get_language(
+            self.lang
+        ).is_test_path(rel)
 
     def is_skipped(self, rel: str) -> bool:
         return any(s in f"/{rel}" for s in self.skip)

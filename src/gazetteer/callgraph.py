@@ -43,7 +43,7 @@ class LspQuerier:
     ) -> None:
         t0 = time.time()
         self.root, self.layout, self.symbols = root.resolve(), layout, symbols
-        self.lsp = LSP(root, cmd)
+        self.lsp = LSP(root, cmd, layout.lang)
         for m in modules.values():
             self.lsp.open(m["path"])
         self.init_seconds = time.time() - t0
@@ -157,8 +157,7 @@ def name_based_tests(
     hits: dict[str, dict[str, set[str]]] = collections.defaultdict(lambda: collections.defaultdict(set))
     files = 0
     lang = get_language(layout.lang)
-    for rel in lang.test_files(root, layout):
-        tests = lang.test_uses(root / rel)
+    for rel, tests in lang.test_uses(root, lang.test_files(root, layout)).items():
         if tests is None:
             continue
         files += 1

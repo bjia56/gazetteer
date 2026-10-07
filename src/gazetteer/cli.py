@@ -8,7 +8,7 @@ import sys
 from pathlib import Path
 
 from .build import BuildOptions, build, build_shard, parse_server
-from .languages import language_names
+from .languages import LanguageToolError, language_names
 from .layout import Layout, LayoutError
 from .pack import pack
 from .units import CONFIG_NAME, Config, ConfigError, find_config, load_config
@@ -32,7 +32,7 @@ def _parser() -> argparse.ArgumentParser:
     )
     b.add_argument(
         "--server",
-        help="language server command with call hierarchy (default: the language's own, pyright for python)",
+        help="language server command with call hierarchy (default: the language's own, e.g. pyright for python)",
     )
     b.add_argument("--no-lsp", action="store_true", help="skip the call graph (AST, docs and git only)")
     b.add_argument("--workers", type=int, default=8, help="parallel language-server queries")
@@ -55,7 +55,7 @@ def _parser() -> argparse.ArgumentParser:
     return ap
 
 
-LAYOUT_FLAGS = ("lang", "pkg_dir", "module_root", "import_prefix", "tests", "skip", "docs_dir")
+LAYOUT_FLAGS = ("lang", "pkg_dir", "module_root", "import_prefix", "tests", "skip", "docs_dir", "server")
 
 
 def _layout(args: argparse.Namespace) -> Layout:
@@ -107,12 +107,20 @@ def _run_build(args: argparse.Namespace) -> int:
             print("gazetteer: --shard needs --facts-dir", file=sys.stderr)
             return 2
         i, n = (int(x) for x in args.shard.split("/"))
-        print("shard done", build_shard(opts, i, n))
+        try:
+            print("shard done", build_shard(opts, i, n))
+        except LanguageToolError as e:
+            print(f"gazetteer: {e}", file=sys.stderr)
+            return 2
         return 0
     if bool(args.prev_data) != bool(args.prev_root):
         print("gazetteer: --prev-data and --prev-root go together", file=sys.stderr)
         return 2
-    data = build(opts)
+    try:
+        data = build(opts)
+    except LanguageToolError as e:
+        print(f"gazetteer: {e}", file=sys.stderr)
+        return 2
     args.out.mkdir(parents=True, exist_ok=True)
     data_path = args.out / "data.json"
     data_path.write_text(json.dumps(data, separators=(",", ":")))

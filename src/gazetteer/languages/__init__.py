@@ -14,6 +14,11 @@ from ..model import Module, Symbol
 if TYPE_CHECKING:
     from ..layout import Layout
 
+
+class LanguageToolError(RuntimeError):
+    """A tool a language plugin needs (parser helper, language server, toolchain) is missing or failed."""
+
+
 # Qualified test name -> (hash of its code, names it uses, bare name); plus a hash of everything outside tests.
 TestTable = tuple[dict[str, tuple[str, set[str], str]], str]
 
@@ -25,8 +30,16 @@ class Language(Protocol):
     index_files: tuple[str, ...]
     """File names that stand for their directory (``__init__.py``) and are not named in docs."""
     default_skip: tuple[str, ...]
-    default_server: tuple[str, ...]
-    """Language server command; it must support call hierarchy."""
+
+    @property
+    def default_server(self) -> tuple[str, ...]:
+        """Language server command; it must support call hierarchy."""
+
+    def require(self, lsp: bool) -> None:
+        """Raise ``LanguageToolError`` now if what a build needs is missing (the language server only if ``lsp``)."""
+
+    def is_test_path(self, rel: str) -> bool:
+        """Whether a file is a test by its name alone (``x_test.go``); directories of tests are in the layout."""
 
     def detect(self, root: Path) -> Layout:
         """Work out the layout from the directory alone; raises ``LayoutError`` when it cannot."""
@@ -37,8 +50,8 @@ class Language(Protocol):
     def test_files(self, root: Path, layout: Layout) -> list[str]:
         """Test source files under ``layout.tests``, relative to ``root``."""
 
-    def test_uses(self, path: Path) -> list[tuple[str, set[str]]] | None:
-        """(test name, names it uses) for each test in a file, or None when the file does not parse."""
+    def test_uses(self, root: Path, rels: list[str]) -> dict[str, list[tuple[str, set[str]]] | None]:
+        """For each test file: (test name, names it uses) per test, or None when the file does not parse."""
 
     def test_table(self, path: Path) -> TestTable:
         """Per-test hashes and used names, for finding which tests changed between two trees."""

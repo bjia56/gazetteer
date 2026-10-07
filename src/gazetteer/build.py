@@ -78,6 +78,7 @@ def _build_unit(
 ) -> tuple[dict[str, Module], dict[str, Symbol], list[dict[str, str]], dict[str, Any]]:
     """Everything for one unit, in the unit's own ids and paths."""
     root, layout, server = unit.root(opts.root), unit.layout, _server(opts, unit)
+    get_language(layout.lang).require(opts.use_lsp)
     modules, symbols = extract_modules(root, layout)
     cg_info: dict[str, Any] = {}
     if opts.use_lsp:
@@ -192,6 +193,7 @@ def build_shard(opts: BuildOptions, i: int, n: int) -> dict[str, Any]:
     infos: dict[str, Any] = {}
     for unit in opts.all_units():
         root = unit.root(opts.root)
+        get_language(unit.layout.lang).require(True)
         modules, symbols = extract_modules(root, unit.layout)
         facts_dir = _facts_dir(opts, unit)
         assert facts_dir is not None

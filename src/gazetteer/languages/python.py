@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import ast
-import collections
 import hashlib
 from pathlib import Path
 from typing import Any
@@ -12,6 +11,7 @@ from ..layout import DEFAULT_SKIP, TEST_DIR_NAMES, Layout, LayoutError
 from ..lsp import DEFAULT_SERVER
 from ..model import Module, Symbol
 from . import TestTable, register
+from .common import link_subclasses
 
 SNIPPET_MAX_LINES = 40
 FUNCTION_NODES = (ast.FunctionDef, ast.AsyncFunctionDef)
@@ -164,20 +164,6 @@ def _link_imports(modules: dict[str, Module], raw_imports: dict[str, list[str]])
             modules[target]["imported_by"].append(mid)
 
 
-def _link_subclasses(symbols: dict[str, Symbol]) -> None:
-    by_name: dict[str, list[str]] = collections.defaultdict(list)
-    for s in symbols.values():
-        if s["kind"] == "class":
-            by_name[s["name"]].append(s["id"])
-    for s in symbols.values():
-        if s["kind"] != "class":
-            continue
-        for base in s["bases"]:
-            for target in by_name.get(base.split(".")[-1].split("[")[0], []):
-                if target != s["id"]:
-                    symbols[target]["subclasses"].append(s["id"])
-
-
 def _used_names(node: ast.AST) -> set[str]:
     return {x.id for x in ast.walk(node) if isinstance(x, ast.Name)} | {
         x.attr for x in ast.walk(node) if isinstance(x, ast.Attribute)
@@ -194,6 +180,12 @@ class PythonLanguage:
     index_files: tuple[str, ...] = ("__init__.py",)
     default_skip: tuple[str, ...] = DEFAULT_SKIP
     default_server: tuple[str, ...] = DEFAULT_SERVER
+
+    def require(self, lsp: bool) -> None:
+        pass
+
+    def is_test_path(self, rel: str) -> bool:
+        return False  # tests live in the directories listed in the layout
 
     def detect(self, root: Path) -> Layout:
         """Find the one importable package under ``root`` (``src/<pkg>`` or ``<pkg>``)."""
@@ -248,22 +240,26 @@ class PythonLanguage:
             symbols.update({s["id"]: s for s in found})
 
         _link_imports(modules, raw_imports)
-        _link_subclasses(symbols)
+        link_subclasses(symbols)
         return modules, symbols
 
     def test_files(self, root: Path, layout: Layout) -> list[str]:
         return [p.relative_to(root).as_posix() for t in layout.tests for p in sorted((root / t).rglob("*.py"))]
 
-    def test_uses(self, path: Path) -> list[tuple[str, set[str]]] | None:
-        try:
-            tree = ast.parse(path.read_text(errors="replace"))
-        except (SyntaxError, ValueError):
-            return None
-        return [
-            (node.name, _used_names(node))
-            for node in ast.walk(tree)
-            if isinstance(node, FUNCTION_NODES) and node.name.startswith("test")
-        ]
+    def test_uses(self, root: Path, rels: list[str]) -> dict[str, list[tuple[str, set[str]]] | None]:
+        out: dict[str, list[tuple[str, set[str]]] | None] = {}
+        for rel in rels:
+            try:
+                tree = ast.parse((root / rel).read_text(errors="replace"))
+            except (SyntaxError, ValueError):
+                out[rel] = None
+                continue
+            out[rel] = [
+                (node.name, _used_names(node))
+                for node in ast.walk(tree)
+                if isinstance(node, FUNCTION_NODES) and node.name.startswith("test")
+            ]
+        return out
 
     def test_table(self, path: Path) -> TestTable:
         """Qualified function name -> (hash, names used, bare name); plus a hash of the code outside functions."""

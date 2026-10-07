@@ -16,7 +16,10 @@ DEFAULT_SERVER = ("pyright-langserver", "--stdio")
 
 
 class LSP:
-    def __init__(self, root: Path, cmd: tuple[str, ...] | list[str] = DEFAULT_SERVER) -> None:
+    def __init__(
+        self, root: Path, cmd: tuple[str, ...] | list[str] = DEFAULT_SERVER, language_id: str = "python"
+    ) -> None:
+        self.language_id = language_id
         self.root = root.resolve()  # servers report resolved paths; a symlinked root returns empty results
         self.proc = subprocess.Popen(
             list(cmd), stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL
@@ -99,7 +102,7 @@ class LSP:
                 {
                     "textDocument": {
                         "uri": uri,
-                        "languageId": "python",
+                        "languageId": self.language_id,
                         "version": 1,
                         "text": (self.root / rel).read_text(),
                     }
