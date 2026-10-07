@@ -8,8 +8,9 @@ import subprocess
 from pathlib import Path
 from typing import Any
 
-from .extract import Module, Symbol
+from .languages import get_language
 from .layout import Layout
+from .model import Module, Symbol
 
 DOC_SNIPPET_CHARS = 200
 MIN_DOC_NAME_LEN = 8
@@ -27,6 +28,7 @@ def link_docs(
         text = p.read_text(errors="replace")
         title = next((ln[2:].strip() for ln in text.split("\n") if ln.startswith("# ")), p.stem)
         docs.append({"file": f"{layout.docs_dir}/{p.name}", "title": title, "text": text})
+    index_files = get_language(layout.lang).index_files
     name_count = collections.Counter(s["name"] for s in symbols.values())
     for d in docs:
         lines = d["text"].split("\n")
@@ -35,7 +37,7 @@ def link_docs(
             hits = [
                 i
                 for i, ln in enumerate(lines)
-                if mod["path"] in ln or f"`{mod['id']}`" in ln or (base != "__init__.py" and f"`{base}`" in ln)
+                if mod["path"] in ln or f"`{mod['id']}`" in ln or (base not in index_files and f"`{base}`" in ln)
             ]
             if hits:
                 mod["docs"].append(
@@ -66,6 +68,7 @@ def link_docs(
 
 def git_facts(git_dir: Path, layout: Layout, modules: dict[str, Module]) -> dict[str, int]:
     """Per-module commit counts, dates and co-changing files. Returns {} outside a git repository."""
+    exts = get_language(layout.lang).file_exts
     proc = subprocess.run(
         [
             "git",
@@ -104,9 +107,9 @@ def git_facts(git_dir: Path, layout: Layout, modules: dict[str, Module]) -> dict
             e["commits"] += 1
             e["authors"].add(c["author"])
             e["first"] = c["date"]
-        py = sorted({f for f in c["files"] if f.endswith(".py")})
-        if 2 <= len(py) <= MAX_COMMIT_FILES:
-            pair.update(itertools.combinations(py, 2))
+        code = sorted({f for f in c["files"] if f.endswith(exts)})
+        if 2 <= len(code) <= MAX_COMMIT_FILES:
+            pair.update(itertools.combinations(code, 2))
     path_to_mod = {m["path"]: m["id"] for m in modules.values()}
     related: dict[str, list[tuple[int, str]]] = collections.defaultdict(list)
     for (a, b), n in pair.items():

@@ -31,6 +31,7 @@ class Layout:
     tests:         directories holding tests; they are linked to code, not documented.
     skip:          path substrings to leave out (matched against ``/<relative path>``).
     docs_dir:      directory of markdown docs to cross-link with the code.
+    lang:          name of the language plugin that reads this tree.
     """
 
     pkg_dir: str
@@ -39,6 +40,7 @@ class Layout:
     tests: tuple[str, ...] = ()
     skip: tuple[str, ...] = DEFAULT_SKIP
     docs_dir: str = "docs"
+    lang: str = "python"
 
     def is_test(self, rel: str) -> bool:
         return any(rel == t or rel.startswith(t.rstrip("/") + "/") for t in self.tests)
@@ -47,33 +49,8 @@ class Layout:
         return any(s in f"/{rel}" for s in self.skip)
 
     @classmethod
-    def detect(cls, root: Path) -> Layout:
-        """Find the one importable package under ``root`` (``src/<pkg>`` or ``<pkg>``)."""
-        root = Path(root)
-        tests = tuple(d for d in TEST_DIR_NAMES if (root / d).is_dir())
-        found: list[tuple[str, str, str]] = []
-        src = root / "src"
-        if src.is_dir():
-            found = [
-                (f"src/{d.name}", "src", d.name)
-                for d in sorted(src.iterdir())
-                if d.is_dir() and (d / "__init__.py").exists()
-            ]
-        if not found:
-            found = [
-                (d.name, ".", d.name)
-                for d in sorted(root.iterdir())
-                if d.is_dir()
-                and (d / "__init__.py").exists()
-                and d.name not in TEST_DIR_NAMES
-                and not d.name.startswith((".", "_"))
-            ]
-        if not found:
-            raise LayoutError(
-                f"no Python package found under {root}; pass --pkg-dir, --module-root and --import-prefix"
-            )
-        if len(found) > 1:
-            names = ", ".join(f[2] for f in found)
-            raise LayoutError(f"several packages found ({names}); pass --pkg-dir to choose one")
-        pkg_dir, module_root, prefix = found[0]
-        return cls(pkg_dir=pkg_dir, module_root=module_root, import_prefix=prefix, tests=tests)
+    def detect(cls, root: Path, lang: str = "python") -> Layout:
+        """Work out the layout of ``root`` for one language; raises ``LayoutError`` when it cannot."""
+        from .languages import get_language
+
+        return get_language(lang).detect(Path(root))

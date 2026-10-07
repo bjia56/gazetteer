@@ -21,16 +21,16 @@ from .callgraph import (
     run_shard,
 )
 from .extract import extract_modules
+from .languages import get_language
 from .layout import Layout
 from .links import git_facts, link_docs
-from .lsp import DEFAULT_SERVER
 
 
 @dataclass
 class BuildOptions:
     root: Path
     layout: Layout
-    server: tuple[str, ...] = DEFAULT_SERVER
+    server: tuple[str, ...] | None = None  # default: the language's own server
     git_dir: Path | None = None
     name: str | None = None
     use_lsp: bool = True
@@ -56,6 +56,7 @@ def build(opts: BuildOptions) -> dict[str, Any]:
     t0 = time.time()
     root, layout = opts.root, opts.layout
     git_dir = opts.git_dir or root
+    server = opts.server or get_language(layout.lang).default_server
     modules, symbols = extract_modules(root, layout)
     cg_info: dict[str, Any] = {}
     if opts.use_lsp:
@@ -66,10 +67,10 @@ def build(opts: BuildOptions) -> dict[str, Any]:
         elif opts.prev_data and opts.prev_root:
             prev = json.loads(opts.prev_data.read_text())
             cg_info = incremental_call_graph(
-                root, layout, opts.server, modules, symbols, prev, opts.prev_root, opts.workers, opts.querier_factory
+                root, layout, server, modules, symbols, prev, opts.prev_root, opts.workers, opts.querier_factory
             )
         else:
-            cg_info = call_graph(root, layout, opts.server, modules, symbols, opts.workers, opts.querier_factory)
+            cg_info = call_graph(root, layout, server, modules, symbols, opts.workers, opts.querier_factory)
     if opts.tests_by_name:
         t1 = time.time()
         tinfo = name_based_tests(opts.tests_by_name, layout, symbols)
@@ -81,6 +82,7 @@ def build(opts: BuildOptions) -> dict[str, Any]:
         "commit": _head_sha(git_dir),
         "project": {
             "name": opts.name or root.resolve().name,
+            "lang": layout.lang,
             "prefix": layout.import_prefix,
             "tests": list(layout.tests),
             "docs_dir": layout.docs_dir,
@@ -108,7 +110,7 @@ def build_shard(opts: BuildOptions, i: int, n: int) -> dict[str, Any]:
     return run_shard(
         opts.root,
         opts.layout,
-        opts.server,
+        opts.server or get_language(opts.layout.lang).default_server,
         modules,
         symbols,
         i,

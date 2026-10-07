@@ -8,8 +8,8 @@ import sys
 from pathlib import Path
 
 from .build import BuildOptions, build, build_shard, parse_server
+from .languages import language_names
 from .layout import Layout, LayoutError
-from .lsp import DEFAULT_SERVER
 from .pack import pack
 
 
@@ -22,10 +22,10 @@ def _parser() -> argparse.ArgumentParser:
     b.add_argument("--out", type=Path, default=Path("gazetteer-out"), help="output directory")
     b.add_argument("--name", help="project name shown on the page (default: directory name)")
     b.add_argument("--git-dir", type=Path, help="repository for git history (default: root)")
+    b.add_argument("--lang", default="python", choices=language_names(), help="language of the code (default: python)")
     b.add_argument(
         "--server",
-        default=" ".join(DEFAULT_SERVER),
-        help="language server command with call hierarchy (default: %(default)s)",
+        help="language server command with call hierarchy (default: the language's own, pyright for python)",
     )
     b.add_argument("--no-lsp", action="store_true", help="skip the call graph (AST, docs and git only)")
     b.add_argument("--workers", type=int, default=8, help="parallel language-server queries")
@@ -51,14 +51,17 @@ def _parser() -> argparse.ArgumentParser:
 def _layout(args: argparse.Namespace) -> Layout:
     root: Path = args.root
     if args.pkg_dir and args.module_root is not None and args.import_prefix is not None:
-        base = Layout(pkg_dir=args.pkg_dir, module_root=args.module_root, import_prefix=args.import_prefix)
+        base = Layout(
+            pkg_dir=args.pkg_dir, module_root=args.module_root, import_prefix=args.import_prefix, lang=args.lang
+        )
     else:
-        found = Layout.detect(root)
+        found = Layout.detect(root, args.lang)
         base = Layout(
             pkg_dir=args.pkg_dir or found.pkg_dir,
             module_root=args.module_root if args.module_root is not None else found.module_root,
             import_prefix=args.import_prefix if args.import_prefix is not None else found.import_prefix,
             tests=found.tests,
+            lang=args.lang,
         )
     updates: dict[str, object] = {}
     if args.tests is not None:
@@ -79,7 +82,7 @@ def _run_build(args: argparse.Namespace) -> int:
     opts = BuildOptions(
         root=args.root,
         layout=layout,
-        server=parse_server(args.server),
+        server=parse_server(args.server) if args.server else None,
         git_dir=args.git_dir,
         name=args.name,
         use_lsp=not args.no_lsp,

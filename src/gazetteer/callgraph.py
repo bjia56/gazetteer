@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import ast
 import collections
 import hashlib
 import json
@@ -13,12 +12,12 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Any, Protocol
 
-from .extract import FUNCTION_NODES, Module, Symbol
+from .languages import Language, get_language
 from .layout import Layout
 from .lsp import LSP
+from .model import TESTS_PER_FILE, Module, Symbol
 
 FACT_FIELDS = ("calls_in", "calls_in_x", "calls_out", "calls_out_x", "tests")
-TESTS_PER_FILE = 6
 
 
 class Querier(Protocol):
@@ -142,12 +141,6 @@ def aggregate_tests(modules: dict[str, Module], symbols: dict[str, Symbol]) -> N
         mod["tests"] = dict(sorted(agg.items(), key=lambda kv: -kv[1]))
 
 
-def _used_names(node: ast.AST) -> set[str]:
-    return {x.id for x in ast.walk(node) if isinstance(x, ast.Name)} | {
-        x.attr for x in ast.walk(node) if isinstance(x, ast.Attribute)
-    }
-
-
 def name_based_tests(
     root: Path, layout: Layout, symbols: dict[str, Symbol], max_defs: int = 3, min_len: int = 5
 ) -> dict[str, int]:
@@ -163,19 +156,16 @@ def name_based_tests(
     }
     hits: dict[str, dict[str, set[str]]] = collections.defaultdict(lambda: collections.defaultdict(set))
     files = 0
-    for t in layout.tests:
-        for p in sorted((root / t).rglob("*.py")):
-            rel = p.relative_to(root).as_posix()
-            try:
-                tree = ast.parse(p.read_text(errors="replace"))
-            except (SyntaxError, ValueError):
-                continue
-            files += 1
-            for node in ast.walk(tree):
-                if isinstance(node, FUNCTION_NODES) and node.name.startswith("test"):
-                    for n in _used_names(node) & usable.keys():
-                        for sid in usable[n]:
-                            hits[sid][rel].add(node.name)
+    lang = get_language(layout.lang)
+    for rel in lang.test_files(root, layout):
+        tests = lang.test_uses(root / rel)
+        if tests is None:
+            continue
+        files += 1
+        for test_name, used in tests:
+            for n in used & usable.keys():
+                for sid in usable[n]:
+                    hits[sid][rel].add(test_name)
     for s in symbols.values():
         s["tests"] = {f: sorted(ns)[:TESTS_PER_FILE] for f, ns in hits.get(s["id"], {}).items()}
     return {"test_files": files, "symbols_with_tests": len(hits)}
@@ -292,90 +282,37 @@ def apply_facts(symbols: dict[str, Symbol], facts_dir: Path) -> int:
 # ----------------------------------------------------------------- incremental
 
 
-def _func_table(path: Path) -> tuple[dict[str, tuple[str, set[str], str]], str]:
-    """Qualified function name -> (hash, names used, bare name); plus a hash of the code outside functions."""
-    text = path.read_text(errors="replace")
-    try:
-        tree = ast.parse(text)
-    except SyntaxError:
-        return {}, "syntax-error"
-    funcs: dict[str, tuple[str, set[str], str]] = {}
-
-    def walk(body: list[ast.stmt], prefix: str = "") -> None:
-        for n in body:
-            if isinstance(n, FUNCTION_NODES):
-                funcs[prefix + n.name] = (_sha1(ast.dump(n).encode()), _used_names(n), n.name)
-                walk(n.body, prefix + n.name + ".")  # nested helpers are call-hierarchy items of their own
-            elif isinstance(n, ast.ClassDef):
-                walk(n.body, prefix + n.name + ".")
-            else:
-                for field in ("body", "orelse", "finalbody", "handlers"):
-                    for child in getattr(n, field, None) or []:
-                        if isinstance(child, (*FUNCTION_NODES, ast.ClassDef)):
-                            walk([child], prefix)
-                        elif hasattr(child, "body"):
-                            walk(child.body, prefix)
-
-    walk(tree.body)
-
-    class Strip(ast.NodeTransformer):
-        def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
-            return None  # functions compare individually; adding or removing one is not a residual change
-
-        visit_AsyncFunctionDef = visit_FunctionDef  # type: ignore[assignment]
-
-    residual = _sha1(ast.dump(Strip().visit(ast.parse(text))).encode())
-    return funcs, residual
-
-
 def _file_hashes(root: Path, rels: list[str]) -> dict[str, str]:
     return {rel: _sha1((root / rel).read_bytes()) for rel in rels}
 
 
 def _test_hashes(root: Path, layout: Layout) -> dict[str, str]:
-    return {
-        p.relative_to(root).as_posix(): _sha1(p.read_bytes()) for t in layout.tests for p in (root / t).rglob("*.py")
-    }
-
-
-def _coarse_names(path: Path) -> set[str]:
-    names: set[str] = set()
-    try:
-        for node in ast.walk(ast.parse(path.read_text(errors="replace"))):
-            if isinstance(node, ast.Name):
-                names.add(node.id)
-            elif isinstance(node, ast.Attribute):
-                names.add(node.attr)
-            elif isinstance(node, ast.alias):
-                names.add(node.name.split(".")[-1])
-    except SyntaxError:
-        pass
-    return names
+    return {rel: _sha1((root / rel).read_bytes()) for rel in get_language(layout.lang).test_files(root, layout)}
 
 
 def _changed_test_names(
-    root: Path, prev_root: Path, tchanged: set[str], pth: dict[str, str], nth: dict[str, str]
+    lang: Language, root: Path, prev_root: Path, tchanged: set[str], pth: dict[str, str], nth: dict[str, str]
 ) -> tuple[set[str], set[str]]:
     """Names used inside changed test functions, and names of test functions that went away."""
     names: set[str] = set()
     old_names: set[str] = set()
     for p in tchanged:
         if p in pth and p in nth:
-            of, ores = _func_table(prev_root / p)
-            nf, nres = _func_table(root / p)
+            of, ores = lang.test_table(prev_root / p)
+            nf, nres = lang.test_table(root / p)
             if ores == nres:
                 for q, v in nf.items():
                     if q not in of or of[q][0] != v[0]:
                         names |= v[1]
                 old_names |= {v[2] for q, v in of.items() if q not in nf or nf[q][0] != v[0]}
             else:
-                names |= _coarse_names(root / p)  # code outside functions changed: names used anywhere
+                names |= lang.coarse_names(root / p)  # code outside functions changed: names used anywhere
         elif p in nth:  # new test file: every function is new
-            nf, _ = _func_table(root / p)
+            nf, _ = lang.test_table(root / p)
             for v in nf.values():
                 names |= v[1]
         else:  # removed test file
-            of, _ = _func_table(prev_root / p)
+            of, _ = lang.test_table(prev_root / p)
             old_names |= {v[2] for v in of.values()}
     return names, old_names
 
@@ -417,7 +354,7 @@ def incremental_call_graph(
     # changed tests can add or drop calls into symbols: requery the symbols they name or used to reach
     pth, nth = _test_hashes(prev_root, layout), _test_hashes(root, layout)
     tchanged = {p for p, h in nth.items() if pth.get(p) != h} | {p for p in pth if p not in nth}
-    names, old_names = _changed_test_names(root, prev_root, tchanged, pth, nth)
+    names, old_names = _changed_test_names(get_language(layout.lang), root, prev_root, tchanged, pth, nth)
     by_name: dict[str, list[str]] = collections.defaultdict(list)
     for sid, s in symbols.items():
         by_name[s["name"]].append(sid)
