@@ -15,6 +15,7 @@ from gazetteer.extract import FUNCTION_NODES, Module, Symbol
 from gazetteer.layout import Layout
 
 SAMPLE = Path(__file__).parent / "fixtures" / "sample"
+GOSAMPLE = Path(__file__).parent / "fixtures" / "gosample"
 
 
 class NameQuerier:
@@ -90,3 +91,10 @@ def sample(tmp_path: Path) -> Path:
 @pytest.fixture()
 def layout(sample: Path) -> Layout:
     return Layout.detect(sample)
+
+
+@pytest.fixture()
+def gosample(tmp_path: Path) -> Path:
+    dest = tmp_path / "gosample"
+    shutil.copytree(GOSAMPLE, dest)
+    return dest

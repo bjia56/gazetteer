@@ -61,15 +61,23 @@ class Language(Protocol):
 
 
 _REGISTRY: dict[str, Language] = {}
+_BUILTIN = ("python", "go")
 
 
 def register(lang: Language) -> None:
     _REGISTRY[lang.name] = lang
 
 
+def _load_builtin() -> None:
+    import importlib
+
+    for name in _BUILTIN:
+        if name not in _REGISTRY:
+            importlib.import_module(f"{__name__}.{name}")  # the module registers itself
+
+
 def get_language(name: str) -> Language:
-    if not _REGISTRY:
-        from . import python  # noqa: F401  (registers itself)
+    _load_builtin()
     try:
         return _REGISTRY[name]
     except KeyError:
@@ -77,5 +85,5 @@ def get_language(name: str) -> Language:
 
 
 def language_names() -> list[str]:
-    get_language("python")
+    _load_builtin()
     return sorted(_REGISTRY)
